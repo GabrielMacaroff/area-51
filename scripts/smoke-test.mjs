@@ -1,11 +1,7 @@
 import assert from 'node:assert/strict';
 const base='http://127.0.0.1:5173';
-let cookie='';
-async function call(path,body,expected=200){const r=await fetch(base+path,{method:body?'POST':'GET',headers:{Origin:base,...(cookie?{Cookie:cookie}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});const data=await r.json();assert.equal(r.status,expected,JSON.stringify(data));return data;}
-const publicPanel=await call('/api/admin');assert.equal(publicPanel.canEdit,false);assert.deepEqual(publicPanel.orders,[]);assert.ok(publicPanel.products.every(p=>p.active));
-await call('/api/admin',{action:'status',id:crypto.randomUUID(),status:'Concluído'},403);
-const auth=await fetch(base+'/signin-with-chatgpt?return_to=/',{redirect:'manual'});cookie=auth.headers.getSetCookie().map(c=>c.split(';')[0]).join('; ');assert.ok(cookie);
-const dashboard=await call('/api/admin');assert.equal(dashboard.canEdit,true);assert.ok(dashboard.products.length>=6);
+async function call(path,body,expected=200){const r=await fetch(base+path,{method:body?'POST':'GET',headers:{Origin:base,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});const data=await r.json();assert.equal(r.status,expected,JSON.stringify(data));return data;}
+const dashboard=await call('/api/admin');assert.ok(dashboard.products.length>=6);assert.ok(Array.isArray(dashboard.orders));
 const settings={pickup:'Rua de Teste, 51, Bairro Teste, São Paulo',deliveryFee:700,deliveryEnabled:true,orderingEnabled:true};
 await call('/api/admin',{action:'settings',settings});
 await call('/api/admin',{action:'product',product:{id:'test-product',name:'Produto de teste',category:'Sem álcool',description:'Teste automatizado local',price:1234,image:'/bottles/can.svg',active:true}});
@@ -17,7 +13,10 @@ await call('/api/orders',{...order,key:crypto.randomUUID(),adult:false},400);
 await call('/api/orders',{...order,key:crypto.randomUUID(),items:[{id:'test-product',quantity:-1}]},400);
 await call('/api/orders',{...order,key:crypto.randomUUID(),items:[{id:'missing',quantity:1}]},400);
 await call('/api/admin',{action:'status',id:pickup.id,status:'Concluído'});
-const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jkFcAAAAASUVORK5CYII=','base64');const form=new FormData();form.append('file',new Blob([png],{type:'image/png'}),'test.png');const upload=await fetch(base+'/api/upload',{method:'POST',headers:{Origin:base,Cookie:cookie},body:form});assert.equal(upload.status,200);const image=await upload.json();const download=await fetch(base+image.image);assert.equal(download.status,200);assert.equal(download.headers.get('content-type'),'image/png');
-const noOrigin=await fetch(base+'/api/admin',{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({action:'settings',settings})});assert.equal(noOrigin.status,403);
+const updated=await call('/api/admin');assert.equal(updated.orders.find(o=>o.id===pickup.id)?.status,'Concluído');assert.equal(updated.orders.find(o=>o.id===delivery.id)?.method,'delivery');
+const hidden={id:'test-product',name:'Produto de teste',category:'Sem álcool',description:'Teste automatizado local',price:1234,image:'/bottles/can.svg',active:false};await call('/api/admin',{action:'product',product:hidden});assert.ok((await call('/api/admin')).products.some(p=>p.id===hidden.id&&!p.active));assert.ok(!(await call('/api/catalog')).products.some(p=>p.id===hidden.id));
+const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jkFcAAAAASUVORK5CYII=','base64');const form=new FormData();form.append('file',new Blob([png],{type:'image/png'}),'test.png');const upload=await fetch(base+'/api/upload',{method:'POST',headers:{Origin:base},body:form});assert.equal(upload.status,200);const image=await upload.json();const download=await fetch(base+image.image);assert.equal(download.status,200);assert.equal(download.headers.get('content-type'),'image/png');
+await call('/api/admin',{action:'product',product:{...hidden,image:image.image}});assert.equal((await call('/api/admin')).products.find(p=>p.id===hidden.id)?.image,image.image);
+const noOrigin=await fetch(base+'/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'settings',settings})});assert.equal(noOrigin.status,403);
 await call('/api/admin',{action:'settings',settings:dashboard.settings});
-console.log('PASS: proteção do painel, produtos persistentes, retirada, entrega, preço autoritativo, repetição segura, validações, status, upload R2 e proteção de origem. Banco local apenas.');
+console.log('PASS: acesso completo sem login ou cookies, produtos e fotos persistentes, produtos ocultos editáveis, pedidos e status públicos, retirada, entrega, preço autoritativo, repetição segura, validações e proteção de origem. Banco local apenas.');
