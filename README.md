@@ -8,7 +8,7 @@ Loja responsiva em português, com preto, dourado e amarelo. Funciona no navegad
 - Carrinho salvo neste dispositivo, quantidades e finalização.
 - Clique e Retire ou entrega com taxa configurável.
 - Pedidos persistidos no servidor e pagamento na retirada/entrega.
-- Painel do dono: criar/editar/ocultar produtos, enviar fotos e acompanhar os últimos 100 pedidos.
+- Painel visível a qualquer visitante em modo de consulta. Apenas o dono pode criar/editar/ocultar produtos, enviar fotos, alterar configurações e acompanhar os últimos 100 pedidos. Dados de clientes e produtos ocultos nunca são enviados a visitantes.
 - Preços calculados no servidor, autenticação do dono e proteção de origem nas escritas.
 
 ## Primeiro uso

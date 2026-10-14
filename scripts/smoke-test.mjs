@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 const base='http://127.0.0.1:5173';
 let cookie='';
 async function call(path,body,expected=200){const r=await fetch(base+path,{method:body?'POST':'GET',headers:{Origin:base,...(cookie?{Cookie:cookie}:{}),...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});const data=await r.json();assert.equal(r.status,expected,JSON.stringify(data));return data;}
-await call('/api/admin',null,403);
+const publicPanel=await call('/api/admin');assert.equal(publicPanel.canEdit,false);assert.deepEqual(publicPanel.orders,[]);assert.ok(publicPanel.products.every(p=>p.active));
+await call('/api/admin',{action:'status',id:crypto.randomUUID(),status:'Concluído'},403);
 const auth=await fetch(base+'/signin-with-chatgpt?return_to=/',{redirect:'manual'});cookie=auth.headers.getSetCookie().map(c=>c.split(';')[0]).join('; ');assert.ok(cookie);
-const dashboard=await call('/api/admin');assert.ok(dashboard.products.length>=6);
+const dashboard=await call('/api/admin');assert.equal(dashboard.canEdit,true);assert.ok(dashboard.products.length>=6);
 const settings={pickup:'Rua de Teste, 51, Bairro Teste, São Paulo',deliveryFee:700,deliveryEnabled:true,orderingEnabled:true};
 await call('/api/admin',{action:'settings',settings});
 await call('/api/admin',{action:'product',product:{id:'test-product',name:'Produto de teste',category:'Sem álcool',description:'Teste automatizado local',price:1234,image:'/bottles/can.svg',active:true}});
