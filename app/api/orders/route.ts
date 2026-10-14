@@ -1,0 +1,11 @@
+import {catalog,config,safeMutation,fail} from '../../../lib/server';
+import {orders} from '../../../db/schema';
+import {getDb} from '../../../db';
+import {eq} from 'drizzle-orm';
+export async function POST(req:Request){if(!safeMutation(req))return fail('Origem inválida.',403);try{const data=await req.json() as {customer:string;phone:string;address:string;method:string;adult:boolean;key:string;items:{id:string;quantity:number}[]};const settings=await config();if(!settings.orderingEnabled)return fail('A adega ainda não abriu o recebimento de pedidos.',409);
+ if(typeof data.customer!=='string'||data.customer.trim().length<2||data.customer.length>100||typeof data.phone!=='string'||!/^\d{10,11}$/.test(data.phone.replace(/\D/g,''))||!['pickup','delivery'].includes(data.method)||data.adult!==true||typeof data.key!=='string'||!/^[a-f0-9-]{36}$/.test(data.key)||!Array.isArray(data.items)||data.items.length<1||data.items.length>50)return fail('Confira seus dados e confirme que tem 18 anos ou mais.');
+ if(data.method==='delivery'&&(!settings.deliveryEnabled||typeof data.address!=='string'||data.address.trim().length<10||data.address.length>400))return fail('A entrega precisa estar disponível e o endereço completo deve ser preenchido.');
+ const db=getDb();const existing=await db.select().from(orders).where(eq(orders.key,data.key));if(existing.length)return Response.json({id:existing[0].id,total:existing[0].total});
+ const list=await catalog();const seen=new Set();let total=0;const items=[];for(const i of data.items){const p=list.find(p=>p.id===i.id&&p.active);if(!p||seen.has(i.id)||!Number.isSafeInteger(i.quantity)||i.quantity<1||i.quantity>99)return fail('Um produto foi alterado ou está indisponível. Atualize o carrinho.');seen.add(i.id);total+=p.price*i.quantity;items.push({id:p.id,name:p.name,price:p.price,quantity:i.quantity});}if(data.method==='delivery')total+=settings.deliveryFee;
+ const id=crypto.randomUUID();await db.insert(orders).values({id,key:data.key,customer:data.customer.trim(),phone:data.phone.replace(/\D/g,''),address:data.method==='delivery'?data.address.trim():settings.pickup,method:data.method,items:JSON.stringify(items),total,status:'Recebido',createdAt:new Date().toISOString()});return Response.json({id,total}, {status:201});
+ }catch{return fail('Não foi possível registrar o pedido. Tente novamente.',500);}}
